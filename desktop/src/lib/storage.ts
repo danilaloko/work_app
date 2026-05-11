@@ -8,9 +8,9 @@ export function createDeviceUuid(): string {
 
 export function defaultConfig(): AppConfig {
   return {
-    serverUrl: 'http://127.0.0.1:8010',
+    serverUrl: 'http://31.130.151.42',
     reverbKey: 'local',
-    reverbHost: '127.0.0.1',
+    reverbHost: '31.130.151.42',
     reverbPort: '8080',
     reverbScheme: 'http',
     name: '',

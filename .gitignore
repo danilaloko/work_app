@@ -3,6 +3,7 @@
 .env
 .env.backup
 .env.production
+.env.*.local
 .phpactor.json
 .phpunit.result.cache
 /.codex
@@ -25,3 +26,22 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# SQLite (локальная база)
+/database/database.sqlite
+/database/database.sqlite-journal
+
+# Desktop (Vite + Tauri)
+/desktop/node_modules
+/desktop/dist
+/desktop/.vite
+/desktop/.env
+/desktop/.env.local
+/desktop/.env.*.local
+/desktop/src-tauri/target/
+/desktop/src-tauri/gen/schemas/
+
+# npm / tooling
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*

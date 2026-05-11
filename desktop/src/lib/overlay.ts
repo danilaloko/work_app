@@ -13,9 +13,13 @@ export async function showMemberOverlay(event: PresenceEvent): Promise<void> {
     device: event.device.name ?? '',
   });
 
+  // В дополнительном окне относительные пути («/index.html…») часто дают «Load failed».
+  const url = new URL(window.location.href);
+  url.hash = `overlay?${params.toString()}`;
+
   const label = `member-overlay-${event.user.id}-${Date.now()}`;
   const overlay = new WebviewWindow(label, {
-    url: `/index.html#overlay?${params.toString()}`,
+    url: url.href,
     title: 'Presence Overlay',
     width: 220,
     height: 220,

@@ -44,7 +44,9 @@ class RealtimeClient(QObject):
                 url = self._url_with_token()
                 self.status_changed.emit("Подключение к realtime...")
 
-                with create_connection(url, timeout=10) as ws:
+                ws = create_connection(url, timeout=10)
+
+                try:
                     ws.settimeout(1)
                     self.status_changed.emit("Realtime подключен")
 
@@ -65,6 +67,8 @@ class RealtimeClient(QObject):
                             continue
 
                         self.event_received.emit(payload)
+                finally:
+                    ws.close()
             except Exception as exc:
                 self.status_changed.emit(f"Realtime отключен: {exc}")
 

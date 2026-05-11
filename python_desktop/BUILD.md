@@ -56,8 +56,7 @@ stdout_logfile=/var/www/work_app/storage/logs/python-ws.log
 
 ```bash
 cd python_desktop
-source .venv/bin/activate
-pyinstaller --windowed --onefile --name presence-desktop app.py
+./build_linux.sh
 ```
 
 Результат:
@@ -72,10 +71,7 @@ python_desktop/dist/presence-desktop
 
 ```powershell
 cd python_desktop
-py -m venv .venv
-.\.venv\Scripts\activate
-pip install -r requirements.txt
-pyinstaller --windowed --onefile --name presence-desktop app.py
+.\build_windows.ps1
 ```
 
 Результат:

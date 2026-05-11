@@ -45,3 +45,12 @@ Thumbs.db
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# Python desktop
+/python_desktop/.venv/
+/python_desktop/build/
+/python_desktop/dist/
+/python_desktop/*.spec
+/python_desktop/__pycache__/
+/python_desktop/.mypy_cache/
+/python_desktop/.pytest_cache/

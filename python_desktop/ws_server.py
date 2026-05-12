@@ -49,6 +49,22 @@ class PresenceHub:
         self.connections.setdefault(device.team_id, set()).add(websocket)
         self.devices[websocket] = device
 
+        for existing_socket, existing_device in list(self.devices.items()):
+            if existing_socket == websocket or existing_device.team_id != device.team_id:
+                continue
+
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "member_online",
+                        "team_id": existing_device.team_id,
+                        "user": existing_device.user,
+                        "device": existing_device.device,
+                    },
+                    ensure_ascii=False,
+                )
+            )
+
         await self.broadcast(
             device.team_id,
             {
@@ -110,7 +126,7 @@ class PresenceHub:
                 "name": row["user_name"],
                 "avatar_url": row["avatar_url"],
                 "avatar_key": row["avatar_key"] or "cat",
-                "item_key": row["item_key"] or "coffee",
+                "item_key": row["item_key"] or "laptop",
             },
             device={
                 "id": int(row["device_id"]),

@@ -23,7 +23,8 @@ class AppState:
     user_id: int | None = None
     room_overlay_always_on: bool = False
     avatar_key: str = "cat"
-    item_key: str = "coffee"
+    item_key: str = "laptop"
+    room_overlay_scale: int = 100
 
     @property
     def has_session(self) -> bool:

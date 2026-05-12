@@ -10,7 +10,7 @@ fi
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-python -m PyInstaller --clean --windowed --onefile --name presence-desktop app.py
+python -m PyInstaller --clean --windowed --onefile --name presence-desktop --add-data "pics:pics" app.py
 
 echo
 echo "Linux build is ready:"

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
     QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
@@ -34,17 +35,14 @@ from realtime import RealtimeClient
 from storage import AppState, clear_session, load_state, save_state
 
 AVATAR_PRESETS = {
-    "cat": "Кот",
-    "dog": "Пёс",
-    "fox": "Лис",
-    "robot": "Робот",
+    "cat": "Чёрный кот",
+    "dog": "Белый кот",
 }
 
 ITEM_PRESETS = {
-    "coffee": "Кофе",
-    "laptop": "Ноутбук",
+    "laptop": "Серый ноутбук",
+    "plant": "Фиолетовый ноутбук",
     "book": "Книга",
-    "plant": "Растение",
 }
 
 
@@ -52,10 +50,12 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.state = load_state()
+        self.normalize_presets()
         self.realtime: RealtimeClient | None = None
         self.overlay = OverlayWindow()
         self.room_overlay = RoomStatusOverlayWindow()
         self.room_overlay_last_event = ""
+        self.room_participants: dict[str, dict[str, str]] = {}
         self.status_online = False
 
         self.setWindowTitle(APP_NAME)
@@ -73,6 +73,7 @@ class MainWindow(QMainWindow):
         self.room_overlay_checkbox.toggled.connect(self.toggle_room_overlay)
         self.avatar_select = QComboBox()
         self.item_select = QComboBox()
+        self.overlay_scale_input = QSpinBox()
 
         self.form_widget = QWidget()
         self.session_widget = QWidget()
@@ -85,6 +86,20 @@ class MainWindow(QMainWindow):
 
         if self.state.has_session:
             self.start_presence()
+
+    def normalize_presets(self) -> None:
+        changed = False
+
+        if self.state.avatar_key not in AVATAR_PRESETS:
+            self.state.avatar_key = "cat"
+            changed = True
+
+        if self.state.item_key not in ITEM_PRESETS:
+            self.state.item_key = "laptop"
+            changed = True
+
+        if changed:
+            save_state(self.state)
 
     def setup_ui(self) -> None:
         root = QWidget()
@@ -152,6 +167,7 @@ class MainWindow(QMainWindow):
         settings_layout.addWidget(settings_hint)
         settings_layout.addWidget(self.preset_selector("Аватар", self.avatar_select, AVATAR_PRESETS, self.state.avatar_key, self.update_avatar_key))
         settings_layout.addWidget(self.preset_selector("Предмет", self.item_select, ITEM_PRESETS, self.state.item_key, self.update_item_key))
+        settings_layout.addWidget(self.overlay_scale_selector())
         layout.addWidget(settings)
 
         events_title = QLabel("Последние события")
@@ -230,6 +246,26 @@ class MainWindow(QMainWindow):
 
         return widget
 
+    def overlay_scale_selector(self) -> QWidget:
+        widget = QWidget()
+        widget.setMinimumHeight(68)
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        label = QLabel("Масштаб оверлея, %")
+        label.setObjectName("description")
+        layout.addWidget(label)
+
+        self.overlay_scale_input.setRange(30, 150)
+        self.overlay_scale_input.setSingleStep(5)
+        self.overlay_scale_input.setValue(self.state.room_overlay_scale)
+        self.overlay_scale_input.setMinimumHeight(38)
+        self.overlay_scale_input.valueChanged.connect(self.update_overlay_scale)
+        layout.addWidget(self.overlay_scale_input)
+
+        return widget
+
     def setup_tray(self) -> None:
         self.tray = QSystemTrayIcon(self)
         self.tray.setIcon(make_icon())
@@ -255,10 +291,17 @@ class MainWindow(QMainWindow):
     def update_avatar_key(self, value: str) -> None:
         self.state.avatar_key = value or "cat"
         save_state(self.state)
+        self.update_room_overlay()
 
     def update_item_key(self, value: str) -> None:
-        self.state.item_key = value or "coffee"
+        self.state.item_key = value or "laptop"
         save_state(self.state)
+        self.update_room_overlay()
+
+    def update_overlay_scale(self, value: int) -> None:
+        self.state.room_overlay_scale = value
+        save_state(self.state)
+        self.update_room_overlay()
 
     def join_room(self) -> None:
         self.submit(api.join_room, "Вы вошли в комнату")
@@ -317,13 +360,20 @@ class MainWindow(QMainWindow):
         device = payload.get("device", {})
         name = user.get("name") or "Участник"
         device_name = device.get("name") or "устройство"
+        participant_key = device.get("device_uuid") or f"remote-{user.get('id') or name}"
 
         if event_type == "member_online":
+            self.room_participants[participant_key] = {
+                "name": name,
+                "avatar_key": user.get("avatar_key") or "cat",
+                "item_key": user.get("item_key") or "laptop",
+            }
             self.room_overlay_last_event = f"{name} в сети · {device_name}"
             self.events_label.setText(f"{name} в сети ({device_name})")
             self.tray.showMessage(APP_NAME, f"{name} в сети", QSystemTrayIcon.MessageIcon.Information, 4000)
             self.overlay.show_member(name, "в сети")
         elif event_type == "member_offline":
+            self.room_participants.pop(participant_key, None)
             self.room_overlay_last_event = f"{name} вышел · {device_name}"
             self.events_label.setText(f"{name} вышел из сети")
             self.tray.showMessage(APP_NAME, f"{name} вышел из сети", QSystemTrayIcon.MessageIcon.Information, 4000)
@@ -335,6 +385,7 @@ class MainWindow(QMainWindow):
         self.stop_presence()
         self.room_overlay.hide()
         self.room_overlay_last_event = ""
+        self.room_participants.clear()
         clear_session(self.state)
         self.set_status("Не подключено", online=False)
         self.events_label.setText("Пока нет событий от других участников.")
@@ -366,8 +417,21 @@ class MainWindow(QMainWindow):
             self.status_label.text(),
             self.status_online,
             self.room_overlay_last_event,
+            self.table_participants(),
+            self.state.room_overlay_scale,
         )
         self.room_overlay.show_status()
+
+    def table_participants(self) -> list[dict[str, str]]:
+        local = {
+            "name": self.state.name or "Вы",
+            "avatar_key": self.state.avatar_key,
+            "item_key": self.state.item_key,
+        }
+
+        remotes = list(self.room_participants.values())
+
+        return [local, *remotes][:2]
 
     def enable_autostart(self) -> None:
         try:
@@ -520,6 +584,15 @@ def app_stylesheet() -> str:
     }
 
     QComboBox {
+        min-height: 38px;
+        color: #F8FAFC;
+        background: #111827;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 12px;
+        padding: 0 12px;
+    }
+
+    QSpinBox {
         min-height: 38px;
         color: #F8FAFC;
         background: #111827;

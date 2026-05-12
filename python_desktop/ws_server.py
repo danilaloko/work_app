@@ -25,6 +25,9 @@ from urllib.parse import parse_qs, urlparse
 from websockets.exceptions import ConnectionClosed
 from websockets.legacy.server import WebSocketServerProtocol, serve
 
+AVATAR_KEYS = {"cat", "dog", "fox", "robot"}
+ITEM_KEYS = {"coffee", "laptop", "book", "plant"}
+
 
 @dataclass(frozen=True)
 class PresenceDevice:
@@ -80,8 +83,45 @@ class PresenceHub:
             async for message in websocket:
                 if message == "ping":
                     await websocket.send("pong")
+                    continue
+
+                await self.handle_client_message(websocket, message)
         finally:
             await self.disconnect(websocket)
+
+    async def handle_client_message(self, websocket: WebSocketServerProtocol, message: str) -> None:
+        device = self.devices.get(websocket)
+
+        if device is None:
+            return
+
+        try:
+            payload = json.loads(message)
+        except json.JSONDecodeError:
+            return
+
+        if payload.get("type") != "profile_updated":
+            return
+
+        avatar_key = payload.get("avatar_key")
+        item_key = payload.get("item_key")
+
+        if avatar_key not in AVATAR_KEYS or item_key not in ITEM_KEYS:
+            return
+
+        device.user["avatar_key"] = avatar_key
+        device.user["item_key"] = item_key
+
+        await self.broadcast(
+            device.team_id,
+            {
+                "type": "member_updated",
+                "team_id": device.team_id,
+                "user": device.user,
+                "device": device.device,
+            },
+            exclude=websocket,
+        )
 
     def authenticate(self, path: str) -> PresenceDevice | None:
         parsed = urlparse(path)

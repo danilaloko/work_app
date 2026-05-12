@@ -292,11 +292,13 @@ class MainWindow(QMainWindow):
         self.state.avatar_key = value or "cat"
         save_state(self.state)
         self.update_room_overlay()
+        self.sync_profile_update()
 
     def update_item_key(self, value: str) -> None:
         self.state.item_key = value or "laptop"
         save_state(self.state)
         self.update_room_overlay()
+        self.sync_profile_update()
 
     def update_overlay_scale(self, value: int) -> None:
         self.state.room_overlay_scale = value
@@ -354,6 +356,18 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self.set_status(f"Heartbeat ошибка: {exc}", online=False)
 
+    def sync_profile_update(self) -> None:
+        if not self.state.has_session:
+            return
+
+        try:
+            api.update_profile(self.state)
+
+            if self.realtime:
+                self.realtime.send_profile_update()
+        except Exception as exc:
+            self.events_label.setText(f"Не удалось отправить выбор: {exc}")
+
     def handle_presence_event(self, payload: dict[str, Any]) -> None:
         event_type = payload.get("type")
         user = payload.get("user", {})
@@ -378,6 +392,13 @@ class MainWindow(QMainWindow):
             self.events_label.setText(f"{name} вышел из сети")
             self.tray.showMessage(APP_NAME, f"{name} вышел из сети", QSystemTrayIcon.MessageIcon.Information, 4000)
             self.overlay.show_member(name, "вышел из сети")
+        elif event_type == "member_updated":
+            self.room_participants[participant_key] = {
+                "name": name,
+                "avatar_key": user.get("avatar_key") or "cat",
+                "item_key": user.get("item_key") or "laptop",
+            }
+            self.events_label.setText(f"{name} обновил аватар или предмет")
 
         self.update_room_overlay()
 

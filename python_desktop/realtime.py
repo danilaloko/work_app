@@ -22,6 +22,8 @@ class RealtimeClient(QObject):
         self.state = state
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._ws: Any | None = None
+        self._send_lock = threading.Lock()
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -47,6 +49,7 @@ class RealtimeClient(QObject):
                 ws = create_connection(url, timeout=10)
 
                 try:
+                    self._ws = ws
                     ws.settimeout(1)
                     self.status_changed.emit("Realtime подключен")
 
@@ -68,6 +71,7 @@ class RealtimeClient(QObject):
 
                         self.event_received.emit(payload)
                 finally:
+                    self._ws = None
                     ws.close()
             except Exception as exc:
                 self.status_changed.emit(f"Realtime отключен: {exc}")
@@ -81,3 +85,14 @@ class RealtimeClient(QObject):
         query["token"] = self.state.device_token or ""
 
         return urlunparse(parsed._replace(query=urlencode(query)))
+
+    def send_profile_update(self) -> None:
+        payload = {
+            "type": "profile_updated",
+            "avatar_key": self.state.avatar_key,
+            "item_key": self.state.item_key,
+        }
+
+        with self._send_lock:
+            if self._ws is not None:
+                self._ws.send(json.dumps(payload, ensure_ascii=False))

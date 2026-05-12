@@ -36,6 +36,27 @@ def heartbeat(state: AppState) -> dict[str, Any]:
     return _parse_response(response)
 
 
+def update_profile(state: AppState) -> dict[str, Any]:
+    if not state.device_token:
+        raise ApiError("Нет токена устройства")
+
+    response = requests.post(
+        f"{state.server_url.rstrip('/')}/api/presence/profile",
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {state.device_token}",
+            "Content-Type": "application/json",
+        },
+        json={
+            "avatar_key": state.avatar_key,
+            "item_key": state.item_key,
+        },
+        timeout=10,
+    )
+
+    return _parse_response(response)
+
+
 def apply_join_response(state: AppState, payload: dict[str, Any]) -> None:
     state.device_token = payload["device_token"]
     state.team_id = int(payload["team"]["id"])

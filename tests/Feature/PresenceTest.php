@@ -82,6 +82,30 @@ class PresenceTest extends TestCase
         Event::assertDispatched(MemberOnline::class);
     }
 
+    public function test_profile_update_stores_avatar_and_item_keys(): void
+    {
+        [, $device, $token] = $this->createDevice();
+
+        $response = $this
+            ->withToken($token)
+            ->postJson('/api/presence/profile', [
+                'avatar_key' => 'dog',
+                'item_key' => 'plant',
+            ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('user.avatar_key', 'dog')
+            ->assertJsonPath('user.item_key', 'plant')
+            ->assertJsonPath('device.id', $device->id);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $device->user_id,
+            'avatar_key' => 'dog',
+            'item_key' => 'plant',
+        ]);
+    }
+
     public function test_mark_offline_command_marks_stale_devices_offline(): void
     {
         Event::fake([MemberOffline::class]);

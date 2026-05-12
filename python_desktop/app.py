@@ -360,13 +360,18 @@ class MainWindow(QMainWindow):
         if not self.state.has_session:
             return
 
+        api_error = None
+
         try:
             api.update_profile(self.state)
-
-            if self.realtime:
-                self.realtime.send_profile_update()
         except Exception as exc:
-            self.events_label.setText(f"Не удалось отправить выбор: {exc}")
+            api_error = exc
+
+        if self.realtime:
+            self.realtime.send_profile_update()
+
+        if api_error:
+            self.events_label.setText(f"Выбор отправлен через realtime. HTTP API недоступен: {api_error}")
 
     def handle_presence_event(self, payload: dict[str, Any]) -> None:
         event_type = payload.get("type")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import queue
 import threading
 import time
 from typing import Any
@@ -23,7 +24,7 @@ class RealtimeClient(QObject):
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._ws: Any | None = None
-        self._send_lock = threading.Lock()
+        self._outgoing: queue.Queue[dict[str, Any]] = queue.Queue()
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
@@ -54,6 +55,8 @@ class RealtimeClient(QObject):
                     self.status_changed.emit("Realtime подключен")
 
                     while not self._stop.is_set():
+                        self._flush_outgoing(ws)
+
                         try:
                             raw = ws.recv()
                         except WebSocketTimeoutException:
@@ -87,12 +90,19 @@ class RealtimeClient(QObject):
         return urlunparse(parsed._replace(query=urlencode(query)))
 
     def send_profile_update(self) -> None:
-        payload = {
-            "type": "profile_updated",
-            "avatar_key": self.state.avatar_key,
-            "item_key": self.state.item_key,
-        }
+        self._outgoing.put(
+            {
+                "type": "profile_updated",
+                "avatar_key": self.state.avatar_key,
+                "item_key": self.state.item_key,
+            }
+        )
 
-        with self._send_lock:
-            if self._ws is not None:
-                self._ws.send(json.dumps(payload, ensure_ascii=False))
+    def _flush_outgoing(self, ws: Any) -> None:
+        while True:
+            try:
+                payload = self._outgoing.get_nowait()
+            except queue.Empty:
+                return
+
+            ws.send(json.dumps(payload, ensure_ascii=False))

@@ -109,6 +109,12 @@ class PresenceHub:
         if avatar_key not in AVATAR_KEYS or item_key not in ITEM_KEYS:
             return
 
+        with sqlite3.connect(self.db_path) as connection:
+            connection.execute(
+                "update users set avatar_key = ?, item_key = ?, updated_at = CURRENT_TIMESTAMP where id = ?",
+                (avatar_key, item_key, device.user["id"]),
+            )
+
         device.user["avatar_key"] = avatar_key
         device.user["item_key"] = item_key
 

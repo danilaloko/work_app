@@ -22,17 +22,21 @@ class CreateRoomTest extends TestCase
             'device_name' => 'Linux laptop',
             'platform' => 'linux',
             'hostname' => 'local',
+            'avatar_key' => 'fox',
+            'item_key' => 'book',
         ]);
 
         $response
             ->assertCreated()
             ->assertJsonPath('team.name', 'Комната ROOM-123')
             ->assertJsonPath('user.name', 'Данил')
+            ->assertJsonPath('user.avatar_key', 'fox')
+            ->assertJsonPath('user.item_key', 'book')
             ->assertJsonPath('device.device_uuid', '550e8400-e29b-41d4-a716-446655440000')
             ->assertJsonStructure([
                 'device_token',
                 'team' => ['id', 'name'],
-                'user' => ['id', 'name', 'avatar_url'],
+                'user' => ['id', 'name', 'avatar_url', 'avatar_key', 'item_key'],
                 'device' => ['id', 'device_uuid', 'name', 'platform', 'hostname'],
             ]);
 

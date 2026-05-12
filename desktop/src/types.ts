@@ -8,6 +8,7 @@ export type AppConfig = {
   inviteCode: string;
   deviceName: string;
   deviceUuid: string;
+  roomOverlayAlwaysOn: boolean;
   deviceToken?: string;
   teamId?: number;
   teamName?: string;
@@ -36,6 +37,7 @@ export type HeartbeatResponse = {
 };
 
 export type PresenceEvent = {
+  type: PresenceEventType;
   team_id: number;
   user: MemberUser;
   device: MemberDevice & {
@@ -44,6 +46,8 @@ export type PresenceEvent = {
     offline_at?: string;
   };
 };
+
+export type PresenceEventType = 'online' | 'offline';
 
 export type MemberUser = {
   id: number;

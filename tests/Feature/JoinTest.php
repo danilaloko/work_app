@@ -27,17 +27,21 @@ class JoinTest extends TestCase
             'device_name' => 'Work laptop',
             'platform' => 'linux',
             'hostname' => 'dan-laptop',
+            'avatar_key' => 'robot',
+            'item_key' => 'laptop',
         ]);
 
         $response
             ->assertCreated()
             ->assertJsonPath('team.name', 'Demo Team')
             ->assertJsonPath('user.name', 'Dan')
+            ->assertJsonPath('user.avatar_key', 'robot')
+            ->assertJsonPath('user.item_key', 'laptop')
             ->assertJsonPath('device.device_uuid', '550e8400-e29b-41d4-a716-446655440000')
             ->assertJsonStructure([
                 'device_token',
                 'team' => ['id', 'name'],
-                'user' => ['id', 'name', 'avatar_url'],
+                'user' => ['id', 'name', 'avatar_url', 'avatar_key', 'item_key'],
                 'device' => ['id', 'device_uuid', 'name', 'platform', 'hostname'],
             ]);
 

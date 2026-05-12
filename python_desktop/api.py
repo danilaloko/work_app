@@ -57,6 +57,8 @@ def _post_join_like(state: AppState, endpoint: str) -> dict[str, Any]:
             "device_name": state.device_name,
             "platform": platform.system().lower(),
             "hostname": platform.node(),
+            "avatar_key": state.avatar_key,
+            "item_key": state.item_key,
         },
         timeout=10,
     )

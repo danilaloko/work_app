@@ -21,6 +21,9 @@ class AppState:
     team_id: int | None = None
     team_name: str | None = None
     user_id: int | None = None
+    room_overlay_always_on: bool = False
+    avatar_key: str = "cat"
+    item_key: str = "coffee"
 
     @property
     def has_session(self) -> bool:

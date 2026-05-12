@@ -2,6 +2,7 @@ import { enable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 
 import { createRoom, joinTeam } from './lib/api';
+import { closeRoomStatusOverlay, showRoomStatusOverlay } from './lib/overlay';
 import { PresenceClient } from './lib/presence';
 import { clearDeviceSession, loadConfig, saveConfig } from './lib/storage';
 import type { AppConfig, PresenceEvent } from './types';
@@ -10,10 +11,19 @@ function isTauri(): boolean {
   return '__TAURI_INTERNALS__' in window;
 }
 
+function isOverlayRoute(): boolean {
+  return window.location.hash.startsWith('#overlay') || window.location.hash.startsWith('#room-overlay');
+}
+
+function eventStateLabel(event: PresenceEvent): string {
+  return event.type === 'online' ? 'в сети' : 'вышел из сети';
+}
+
 function OverlayView() {
   const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
   const name = params.get('name') || 'Участник';
   const avatar = params.get('avatar') || '';
+  const state = params.get('state') === 'offline' ? 'offline' : 'online';
   const initials = name
     .split(' ')
     .map((part) => part[0])
@@ -27,7 +37,34 @@ function OverlayView() {
         {avatar ? <img src={avatar} alt="" /> : <span>{initials}</span>}
       </div>
       <strong>{name}</strong>
-      <span>в сети</span>
+      <span>{state === 'online' ? 'в сети' : 'вышел из сети'}</span>
+    </main>
+  );
+}
+
+function RoomStatusOverlayView() {
+  const params = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+  const room = params.get('room') || 'Комната';
+  const status = params.get('status') || 'Не подключено';
+  const connected = params.get('connected') === '1';
+  const lastName = params.get('lastName') || '';
+  const lastState = params.get('lastState') === 'offline' ? 'offline' : 'online';
+  const lastDevice = params.get('lastDevice') || '';
+
+  return (
+    <main className="room-overlay-window">
+      <span className={connected ? 'room-overlay-dot online' : 'room-overlay-dot'} />
+      <div>
+        <p className="room-overlay-label">Комната</p>
+        <strong>{room}</strong>
+        <span>{status}</span>
+      </div>
+      {lastName && (
+        <p className="room-overlay-event">
+          {lastName} {lastState === 'online' ? 'в сети' : 'вышел'}
+          {lastDevice ? ` · ${lastDevice}` : ''}
+        </p>
+      )}
     </main>
   );
 }
@@ -44,9 +81,10 @@ export default function App() {
 
   const hasSession = Boolean(config.deviceToken && config.teamId);
   const canSubmit = useMemo(() => Boolean(config.name && config.inviteCode && config.serverUrl), [config]);
+  const latestEvent = events[0];
 
   useEffect(() => {
-    if (window.location.hash.startsWith('#overlay')) {
+    if (isOverlayRoute()) {
       return;
     }
 
@@ -74,15 +112,32 @@ export default function App() {
   }, [config, hasSession]);
 
   useEffect(() => {
-    if (!isTauri()) {
+    if (!isTauri() || isOverlayRoute()) {
       return;
     }
 
     void isEnabled().then(setAutostartEnabled).catch(() => setAutostartEnabled(false));
   }, []);
 
+  useEffect(() => {
+    if (isOverlayRoute()) {
+      return;
+    }
+
+    if (!config.roomOverlayAlwaysOn || !hasSession) {
+      void closeRoomStatusOverlay();
+      return;
+    }
+
+    void showRoomStatusOverlay(config, connected, status, latestEvent);
+  }, [config, connected, hasSession, latestEvent, status]);
+
   if (window.location.hash.startsWith('#overlay')) {
     return <OverlayView />;
+  }
+
+  if (window.location.hash.startsWith('#room-overlay')) {
+    return <RoomStatusOverlayView />;
   }
 
   async function handleJoin(event: FormEvent<HTMLFormElement>) {
@@ -152,6 +207,7 @@ export default function App() {
 
   function resetSession() {
     clientRef.current?.disconnect();
+    void closeRoomStatusOverlay();
     setEvents([]);
     setConnected(false);
     setStatus('Не подключено');
@@ -226,6 +282,21 @@ export default function App() {
 
         {error && <p className="error">{error}</p>}
 
+        <div className="settings-card">
+          <h2>Настройки</h2>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={config.roomOverlayAlwaysOn}
+              onChange={(event) => updateConfig({ roomOverlayAlwaysOn: event.target.checked })}
+            />
+            <span>
+              <strong>Постоянный оверлей комнаты</strong>
+              <small>Показывает статус комнаты поверх окон. Входы и выходы участников всё равно всплывают отдельно.</small>
+            </span>
+          </label>
+        </div>
+
         {hasSession && (
           <div className="session">
             <strong>Вы в комнате: {config.teamName}</strong>
@@ -241,9 +312,11 @@ export default function App() {
         ) : (
           <ul className="events">
             {events.map((event) => (
-              <li key={`${event.user.id}-${event.device.id}-${event.device.online_at}`}>
+              <li key={`${event.user.id}-${event.device.id}-${event.type}-${event.device.online_at ?? event.device.offline_at}`}>
                 <strong>{event.user.name}</strong>
-                <span>{event.device.name ?? event.device.hostname ?? 'Неизвестное устройство'} в сети</span>
+                <span>
+                  {event.device.name ?? event.device.hostname ?? 'Неизвестное устройство'} {eventStateLabel(event)}
+                </span>
               </li>
             ))}
           </ul>

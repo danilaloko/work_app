@@ -41,6 +41,8 @@ class MemberOnline implements ShouldBroadcastNow
                 'id' => $this->device->user->id,
                 'name' => $this->device->user->name,
                 'avatar_url' => $this->device->user->avatar_url,
+                'avatar_key' => $this->device->user->avatar_key,
+                'item_key' => $this->device->user->item_key,
             ],
             'device' => [
                 'id' => $this->device->id,

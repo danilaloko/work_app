@@ -89,7 +89,9 @@ class PresenceHub:
                     devices.platform,
                     devices.hostname,
                     users.name as user_name,
-                    users.avatar_url
+                    users.avatar_url,
+                    users.avatar_key,
+                    users.item_key
                 from devices
                 join users on users.id = devices.user_id
                 where devices.token_hash = ?
@@ -107,6 +109,8 @@ class PresenceHub:
                 "id": int(row["user_id"]),
                 "name": row["user_name"],
                 "avatar_url": row["avatar_url"],
+                "avatar_key": row["avatar_key"] or "cat",
+                "item_key": row["item_key"] or "coffee",
             },
             device={
                 "id": int(row["device_id"]),

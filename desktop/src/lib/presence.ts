@@ -1,9 +1,9 @@
 import Pusher, { type Channel } from 'pusher-js';
 
 import { sendHeartbeat } from './api';
-import { notifyMemberOnline } from './notifications';
+import { notifyMemberPresence } from './notifications';
 import { showMemberOverlay } from './overlay';
-import type { AppConfig, PresenceEvent } from '../types';
+import type { AppConfig, PresenceEvent, PresenceEventType } from '../types';
 
 type PresenceStatus = {
   connected: boolean;
@@ -65,15 +65,8 @@ export class PresenceClient {
     });
 
     this.channel = this.pusher.subscribe(`private-team.${this.config.teamId}`);
-    this.channel.bind('member_online', (event: PresenceEvent) => {
-      if (event.device.device_uuid === this.config.deviceUuid) {
-        return;
-      }
-
-      this.options.onEvent(event);
-      void notifyMemberOnline(event);
-      void showMemberOverlay(event);
-    });
+    this.bindPresenceEvent('member_online', 'online');
+    this.bindPresenceEvent('member_offline', 'offline');
 
     this.startHeartbeat();
   }
@@ -109,5 +102,18 @@ export class PresenceClient {
     this.heartbeatTimer = window.setInterval(() => {
       void pulse();
     }, 25_000);
+  }
+
+  private bindPresenceEvent(eventName: string, type: PresenceEventType): void {
+    this.channel?.bind(eventName, (payload: Omit<PresenceEvent, 'type'>) => {
+      if (payload.device.device_uuid === this.config.deviceUuid) {
+        return;
+      }
+
+      const event = { ...payload, type };
+      this.options.onEvent(event);
+      void notifyMemberPresence(event);
+      void showMemberOverlay(event);
+    });
   }
 }

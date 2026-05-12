@@ -17,6 +17,7 @@ export function defaultConfig(): AppConfig {
     inviteCode: 'DEMO-TEAM',
     deviceName: navigator.userAgent.includes('Linux') ? 'Linux laptop' : 'Work laptop',
     deviceUuid: createDeviceUuid(),
+    roomOverlayAlwaysOn: false,
   };
 }
 

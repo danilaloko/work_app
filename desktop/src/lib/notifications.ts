@@ -2,7 +2,7 @@ import { isPermissionGranted, requestPermission, sendNotification } from '@tauri
 
 import type { PresenceEvent } from '../types';
 
-export async function notifyMemberOnline(event: PresenceEvent): Promise<void> {
+export async function notifyMemberPresence(event: PresenceEvent): Promise<void> {
   if (!('__TAURI_INTERNALS__' in window)) {
     return;
   }
@@ -19,7 +19,9 @@ export async function notifyMemberOnline(event: PresenceEvent): Promise<void> {
   }
 
   sendNotification({
-    title: `${event.user.name} online`,
-    body: event.device.name ? `${event.device.name} is active` : 'Teammate is active',
+    title: event.type === 'online' ? `${event.user.name} online` : `${event.user.name} offline`,
+    body:
+      event.device.name ??
+      (event.type === 'online' ? 'Teammate is active' : 'Teammate left the room'),
   });
 }

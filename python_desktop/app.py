@@ -7,6 +7,8 @@ from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
+    QComboBox,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -25,9 +27,23 @@ from PySide6.QtWidgets import (
 import api
 from autostart import enable_autostart
 from config import APP_NAME, HEARTBEAT_INTERVAL_SECONDS
-from overlay import OverlayWindow
+from overlay import OverlayWindow, RoomStatusOverlayWindow
 from realtime import RealtimeClient
 from storage import AppState, clear_session, load_state, save_state
+
+AVATAR_PRESETS = {
+    "cat": "Кот",
+    "dog": "Пёс",
+    "fox": "Лис",
+    "robot": "Робот",
+}
+
+ITEM_PRESETS = {
+    "coffee": "Кофе",
+    "laptop": "Ноутбук",
+    "book": "Книга",
+    "plant": "Растение",
+}
 
 
 class MainWindow(QMainWindow):
@@ -36,6 +52,9 @@ class MainWindow(QMainWindow):
         self.state = load_state()
         self.realtime: RealtimeClient | None = None
         self.overlay = OverlayWindow()
+        self.room_overlay = RoomStatusOverlayWindow()
+        self.room_overlay_last_event = ""
+        self.status_online = False
 
         self.setWindowTitle(APP_NAME)
         self.setMinimumSize(860, 620)
@@ -47,6 +66,11 @@ class MainWindow(QMainWindow):
         self.room_label = QLabel("")
         self.events_label = QLabel("Пока нет событий от других участников.")
         self.events_label.setObjectName("eventCard")
+        self.room_overlay_checkbox = QCheckBox("Постоянный оверлей комнаты")
+        self.room_overlay_checkbox.setChecked(self.state.room_overlay_always_on)
+        self.room_overlay_checkbox.toggled.connect(self.toggle_room_overlay)
+        self.avatar_select = QComboBox()
+        self.item_select = QComboBox()
 
         self.form_widget = QWidget()
         self.session_widget = QWidget()
@@ -110,6 +134,20 @@ class MainWindow(QMainWindow):
         session_layout.addLayout(row)
         layout.addWidget(self.session_widget)
 
+        settings = QGroupBox("Настройки")
+        settings.setObjectName("settingsCard")
+        settings_layout = QVBoxLayout(settings)
+        settings_layout.setContentsMargins(18, 24, 18, 18)
+        settings_layout.setSpacing(8)
+        settings_layout.addWidget(self.room_overlay_checkbox)
+        settings_hint = QLabel("Показывает статус комнаты поверх окон. Входы и выходы участников всё равно всплывают отдельно.")
+        settings_hint.setObjectName("description")
+        settings_hint.setWordWrap(True)
+        settings_layout.addWidget(settings_hint)
+        settings_layout.addWidget(self.preset_selector("Аватар", self.avatar_select, AVATAR_PRESETS, self.state.avatar_key, self.update_avatar_key))
+        settings_layout.addWidget(self.preset_selector("Предмет", self.item_select, ITEM_PRESETS, self.state.item_key, self.update_item_key))
+        layout.addWidget(settings)
+
         events_title = QLabel("Последние события")
         events_title.setObjectName("sectionTitle")
         layout.addWidget(events_title)
@@ -148,6 +186,33 @@ class MainWindow(QMainWindow):
 
         return box
 
+    def preset_selector(
+        self,
+        title: str,
+        select: QComboBox,
+        presets: dict[str, str],
+        current: str,
+        action: Any,
+    ) -> QWidget:
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        label = QLabel(title)
+        label.setObjectName("description")
+        layout.addWidget(label)
+
+        for key, label_text in presets.items():
+            select.addItem(label_text, key)
+
+        index = select.findData(current)
+        select.setCurrentIndex(index if index >= 0 else 0)
+        select.currentIndexChanged.connect(lambda _: action(select.currentData()))
+        layout.addWidget(select)
+
+        return widget
+
     def setup_tray(self) -> None:
         self.tray = QSystemTrayIcon(self)
         self.tray.setIcon(make_icon())
@@ -168,6 +233,14 @@ class MainWindow(QMainWindow):
 
     def update_text(self, field: str, value: str) -> None:
         setattr(self.state, field, value)
+        save_state(self.state)
+
+    def update_avatar_key(self, value: str) -> None:
+        self.state.avatar_key = value or "cat"
+        save_state(self.state)
+
+    def update_item_key(self, value: str) -> None:
+        self.state.item_key = value or "coffee"
         save_state(self.state)
 
     def join_room(self) -> None:
@@ -197,6 +270,7 @@ class MainWindow(QMainWindow):
 
         if self.state.has_session:
             self.room_label.setText(f"Вы в комнате: {self.state.team_name}\nHeartbeat отправляется каждые 25 секунд.")
+        self.update_room_overlay()
 
     def start_presence(self) -> None:
         self.stop_presence()
@@ -225,16 +299,25 @@ class MainWindow(QMainWindow):
         user = payload.get("user", {})
         device = payload.get("device", {})
         name = user.get("name") or "Участник"
+        device_name = device.get("name") or "устройство"
 
         if event_type == "member_online":
-            self.events_label.setText(f"{name} в сети ({device.get('name') or 'устройство'})")
+            self.room_overlay_last_event = f"{name} в сети · {device_name}"
+            self.events_label.setText(f"{name} в сети ({device_name})")
             self.tray.showMessage(APP_NAME, f"{name} в сети", QSystemTrayIcon.MessageIcon.Information, 4000)
-            self.overlay.show_member(name)
+            self.overlay.show_member(name, "в сети")
         elif event_type == "member_offline":
+            self.room_overlay_last_event = f"{name} вышел · {device_name}"
             self.events_label.setText(f"{name} вышел из сети")
+            self.tray.showMessage(APP_NAME, f"{name} вышел из сети", QSystemTrayIcon.MessageIcon.Information, 4000)
+            self.overlay.show_member(name, "вышел из сети")
+
+        self.update_room_overlay()
 
     def reset_session(self) -> None:
         self.stop_presence()
+        self.room_overlay.hide()
+        self.room_overlay_last_event = ""
         clear_session(self.state)
         self.set_status("Не подключено", online=False)
         self.events_label.setText("Пока нет событий от других участников.")
@@ -245,9 +328,29 @@ class MainWindow(QMainWindow):
             online = "подключ" in text.lower() or "realtime подключен" in text.lower()
 
         self.status_label.setText(text)
+        self.status_online = online
         self.status_label.setProperty("online", online)
         self.status_label.style().unpolish(self.status_label)
         self.status_label.style().polish(self.status_label)
+        self.update_room_overlay()
+
+    def toggle_room_overlay(self, enabled: bool) -> None:
+        self.state.room_overlay_always_on = enabled
+        save_state(self.state)
+        self.update_room_overlay()
+
+    def update_room_overlay(self) -> None:
+        if not self.state.room_overlay_always_on or not self.state.has_session:
+            self.room_overlay.hide()
+            return
+
+        self.room_overlay.update_room(
+            self.state.team_name or "Комната",
+            self.status_label.text(),
+            self.status_online,
+            self.room_overlay_last_event,
+        )
+        self.room_overlay.show_status()
 
     def enable_autostart(self) -> None:
         try:
@@ -319,6 +422,27 @@ def app_stylesheet() -> str:
         margin-top: 8px;
     }
 
+    QGroupBox#settingsCard {
+        color: #F8FAFC;
+        background: rgba(30, 41, 59, 0.62);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 18px;
+        font-size: 18px;
+        font-weight: 900;
+        padding-top: 14px;
+    }
+
+    QCheckBox {
+        color: #E2E8F0;
+        font-weight: 800;
+        spacing: 10px;
+    }
+
+    QCheckBox::indicator {
+        width: 18px;
+        height: 18px;
+    }
+
     QLabel#statusBadge {
         color: #CBD5E1;
         background: rgba(148, 163, 184, 0.18);
@@ -365,6 +489,15 @@ def app_stylesheet() -> str:
     QLineEdit:focus {
         border: 1px solid #60A5FA;
         background: #0B1120;
+    }
+
+    QComboBox {
+        min-height: 38px;
+        color: #F8FAFC;
+        background: #111827;
+        border: 1px solid rgba(148, 163, 184, 0.28);
+        border-radius: 12px;
+        padding: 0 12px;
     }
 
     QPushButton {

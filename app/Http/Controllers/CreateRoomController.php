@@ -11,6 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class CreateRoomController extends Controller
 {
@@ -27,6 +28,8 @@ class CreateRoomController extends Controller
             'platform' => ['nullable', 'string', 'max:80'],
             'hostname' => ['nullable', 'string', 'max:120'],
             'avatar_url' => ['nullable', 'url', 'max:2048'],
+            'avatar_key' => ['nullable', 'string', Rule::in(['cat', 'dog', 'fox', 'robot'])],
+            'item_key' => ['nullable', 'string', Rule::in(['coffee', 'laptop', 'book', 'plant'])],
         ]);
 
         $plainToken = Str::random(64);
@@ -48,6 +51,8 @@ class CreateRoomController extends Controller
                 'email' => Str::uuid().'@presence.local',
                 'password' => Str::password(32),
                 'avatar_url' => $validated['avatar_url'] ?? null,
+                'avatar_key' => $validated['avatar_key'] ?? 'cat',
+                'item_key' => $validated['item_key'] ?? 'coffee',
             ]);
 
             $device = Device::query()->updateOrCreate(
@@ -81,6 +86,8 @@ class CreateRoomController extends Controller
                 'id' => $user->id,
                 'name' => $user->name,
                 'avatar_url' => $user->avatar_url,
+                'avatar_key' => $user->avatar_key,
+                'item_key' => $user->item_key,
             ],
             'device' => [
                 'id' => $device->id,

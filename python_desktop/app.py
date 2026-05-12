@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
@@ -87,12 +89,14 @@ class MainWindow(QMainWindow):
     def setup_ui(self) -> None:
         root = QWidget()
         root.setObjectName("root")
+        root.setMinimumWidth(820)
         layout = QVBoxLayout(root)
         layout.setContentsMargins(34, 30, 34, 30)
         layout.setSpacing(18)
 
         header = QFrame()
         header.setObjectName("hero")
+        header.setMinimumHeight(126)
         header_layout = QHBoxLayout(header)
         header_layout.setContentsMargins(24, 22, 24, 22)
 
@@ -115,6 +119,7 @@ class MainWindow(QMainWindow):
         form_layout.setSpacing(16)
         form_layout.addWidget(self.room_box("Войти", "Подключиться к уже созданной комнате.", self.join_room), 0, 0)
         form_layout.addWidget(self.room_box("Создать комнату", "Придумай invite code и передай его другому человеку.", self.create_room), 0, 1)
+        self.form_widget.setMinimumHeight(178)
         layout.addWidget(self.form_widget)
 
         session_layout = QVBoxLayout(self.session_widget)
@@ -136,8 +141,9 @@ class MainWindow(QMainWindow):
 
         settings = QGroupBox("Настройки")
         settings.setObjectName("settingsCard")
+        settings.setMinimumHeight(196)
         settings_layout = QVBoxLayout(settings)
-        settings_layout.setContentsMargins(18, 24, 18, 18)
+        settings_layout.setContentsMargins(18, 34, 18, 18)
         settings_layout.setSpacing(8)
         settings_layout.addWidget(self.room_overlay_checkbox)
         settings_hint = QLabel("Показывает статус комнаты поверх окон. Входы и выходы участников всё равно всплывают отдельно.")
@@ -154,13 +160,20 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.events_label)
         layout.addStretch(1)
 
-        self.setCentralWidget(root)
+        scroll = QScrollArea()
+        scroll.setObjectName("mainScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(root)
+        self.setCentralWidget(scroll)
 
     def room_box(self, title: str, description: str, action: Any) -> QGroupBox:
         box = QGroupBox(title)
         box.setObjectName("roomCard")
+        box.setMinimumHeight(166)
+        box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         layout = QVBoxLayout(box)
-        layout.setContentsMargins(22, 28, 22, 22)
+        layout.setContentsMargins(22, 34, 22, 22)
         layout.setSpacing(14)
         description_label = QLabel(description)
         description_label.setObjectName("description")
@@ -170,12 +183,14 @@ class MainWindow(QMainWindow):
         name = QLineEdit()
         name.setPlaceholderText("Имя")
         name.setText(self.state.name)
+        name.setMinimumHeight(40)
         name.textChanged.connect(lambda value: self.update_text("name", value))
         layout.addWidget(name)
 
         invite = QLineEdit()
         invite.setPlaceholderText("Invite code")
         invite.setText(self.state.invite_code)
+        invite.setMinimumHeight(40)
         invite.textChanged.connect(lambda value: self.update_text("invite_code", value))
         layout.addWidget(invite)
 
@@ -195,6 +210,7 @@ class MainWindow(QMainWindow):
         action: Any,
     ) -> QWidget:
         widget = QWidget()
+        widget.setMinimumHeight(68)
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
@@ -208,6 +224,7 @@ class MainWindow(QMainWindow):
 
         index = select.findData(current)
         select.setCurrentIndex(index if index >= 0 else 0)
+        select.setMinimumHeight(38)
         select.currentIndexChanged.connect(lambda _: action(select.currentData()))
         layout.addWidget(select)
 
@@ -391,6 +408,15 @@ def app_stylesheet() -> str:
         font-size: 14px;
     }
 
+    QScrollArea#mainScroll {
+        background: #0F172A;
+        border: 0;
+    }
+
+    QScrollArea#mainScroll > QWidget > QWidget {
+        background: #0F172A;
+    }
+
     QFrame#hero, QGroupBox#roomCard, QLabel#sessionCard, QLabel#eventCard {
         background: rgba(30, 41, 59, 0.92);
         border: 1px solid rgba(148, 163, 184, 0.18);
@@ -472,8 +498,10 @@ def app_stylesheet() -> str:
     QGroupBox::title {
         subcontrol-origin: margin;
         subcontrol-position: top left;
-        left: 18px;
-        padding: 0 6px;
+        top: 8px;
+        left: 20px;
+        padding: 0 8px;
+        background: transparent;
     }
 
     QLineEdit {
